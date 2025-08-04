@@ -1,0 +1,149 @@
+version: '3.8'
+
+services:
+  # Nginx Reverse Proxy con SSL
+  nginx:
+    image: nginx:alpine
+    container_name: gamereviews_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - gamereviews_network
+    restart: unless-stopped
+
+  # Redis para caché y colas
+  redis:
+    image: redis:7-alpine
+    container_name: gamereviews_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - gamereviews_network
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+  # Base de datos PostgreSQL con optimizaciones
+  database:
+    image: postgres:15-alpine
+    container_name: gamereviews_db_prod
+    environment:
+      POSTGRES_DB: games
+      POSTGRES_USER: gamereviews
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts:/docker-entrypoint-initdb.d
+      - ./postgresql.conf:/etc/postgresql/postgresql.conf
+    networks:
+      - gamereviews_network
+    restart: unless-stopped
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gamereviews -d games"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Backend Laravel API optimizado
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.production
+    container_name: gamereviews_backend_prod
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - APP_KEY=${APP_KEY}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=database
+      - DB_PORT=5432
+      - DB_DATABASE=games
+      - DB_USERNAME=gamereviews
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CACHE_DRIVER=redis
+      - SESSION_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - gamereviews_network
+    restart: unless-stopped
+    volumes:
+      - ./backend/storage:/var/www/html/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend Next.js optimizado
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    container_name: gamereviews_frontend_prod
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=https://api.gamereviews.com
+    depends_on:
+      - backend
+    networks:
+      - gamereviews_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Worker para colas de Laravel
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.production
+    container_name: gamereviews_worker
+    environment:
+      - APP_ENV=production
+      - DB_CONNECTION=pgsql
+      - DB_HOST=database
+      - DB_PORT=5432
+      - DB_DATABASE=games
+      - DB_USERNAME=gamereviews
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - QUEUE_CONNECTION=redis
+    depends_on:
+      - database
+      - redis
+    networks:
+      - gamereviews_network
+    restart: unless-stopped
+    command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  gamereviews_network:
+    driver: bridge

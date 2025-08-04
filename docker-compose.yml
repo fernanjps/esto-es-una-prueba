@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # Base de datos PostgreSQL
+  database:
+    image: postgres:15-alpine
+    container_name: gamereviews_db
+    environment:
+      POSTGRES_DB: games
+      POSTGRES_USER: gamereviews
+      POSTGRES_PASSWORD: gamereviews123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts:/docker-entrypoint-initdb.d
+    networks:
+      - gamereviews_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gamereviews -d games"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Laravel API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gamereviews_backend
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - APP_KEY=base64:your-app-key-here
+      - DB_CONNECTION=pgsql
+      - DB_HOST=database
+      - DB_PORT=5432
+      - DB_DATABASE=games
+      - DB_USERNAME=gamereviews
+      - DB_PASSWORD=gamereviews123
+      - JWT_SECRET=your-jwt-secret-here
+    ports:
+      - "8000:8000"
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - gamereviews_network
+    volumes:
+      - ./backend:/var/www/html
+    command: >
+      sh -c "composer install --no-dev --optimize-autoloader &&
+             php artisan config:cache &&
+             php artisan route:cache &&
+             php artisan migrate --force &&
+             php artisan serve --host=0.0.0.0 --port=8000"
+
+  # Frontend Next.js
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gamereviews_frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - gamereviews_network
+
+volumes:
+  postgres_data:
+
+networks:
+  gamereviews_network:
+    driver: bridge
