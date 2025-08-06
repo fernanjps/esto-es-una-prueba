@@ -91,7 +91,5 @@ databases:
     user: gamereviews
     region: oregon
 
-redis:
-  - name: gamereviews-redis
-    plan: free
-    region: oregon
+
+
