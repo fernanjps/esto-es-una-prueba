@@ -51,7 +51,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: NEXT_PUBLIC_API_URL
-        value: https://gamereviews-backend.onrender.com  # Cambiar al dominio real luego del deploy
+        value: https://gamereviews-backend.onrender.com  # Cambiar al dominio real después del deploy
 
   - type: worker
     name: gamereviews-worker
@@ -90,3 +90,4 @@ databases:
     databaseName: games
     user: gamereviews
     region: oregon
+
