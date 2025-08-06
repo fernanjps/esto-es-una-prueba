@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: esto-es-una-prueba
+    env: docker
+    region: oregon
+    plan: free
+    dockerComposeFile: docker-compose.production.yml
+    repo: https://github.com/fernanjps/esto-es-una-prueba
+    branch: main
