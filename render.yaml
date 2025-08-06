@@ -1,10 +1,18 @@
-dockerComposeFile: docker-compose.production.yml
-
 services:
   - type: web
-    name: esto-es-una-prueba
+    name: laravel-backend
     env: docker
-    region: oregon
     plan: free
     repo: https://github.com/fernanjps/esto-es-una-prueba
+    region: oregon
     branch: main
+    rootDir: backend
+
+  - type: web
+    name: react-frontend
+    env: docker
+    plan: free
+    repo: https://github.com/fernanjps/esto-es-una-prueba
+    region: oregon
+    branch: main
+    rootDir: frontend
