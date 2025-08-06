@@ -1,18 +1,97 @@
 services:
   - type: web
-    name: laravel-backend
+    name: gamereviews-backend
     env: docker
-    plan: free
-    repo: https://github.com/fernanjps/esto-es-una-prueba
     region: oregon
+    plan: free
     branch: main
-    rootDir: backend
+    rootDir: .
+    dockerfilePath: ./backend/Dockerfile.production
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: APP_KEY
+        sync: false
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        value: gamereviews-db
+      - key: DB_PORT
+        value: 5432
+      - key: DB_DATABASE
+        value: games
+      - key: DB_USERNAME
+        value: gamereviews
+      - key: DB_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: REDIS_HOST
+        value: gamereviews-redis
+      - key: REDIS_PORT
+        value: 6379
+      - key: CACHE_DRIVER
+        value: redis
+      - key: SESSION_DRIVER
+        value: redis
+      - key: QUEUE_CONNECTION
+        value: redis
 
   - type: web
-    name: react-frontend
+    name: gamereviews-frontend
     env: docker
-    plan: free
-    repo: https://github.com/fernanjps/esto-es-una-prueba
     region: oregon
+    plan: free
     branch: main
-    rootDir: frontend
+    rootDir: .
+    dockerfilePath: ./frontend/Dockerfile.production
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        value: https://gamereviews-backend.onrender.com  # Cambiar al dominio real
+
+  - type: worker
+    name: gamereviews-worker
+    env: docker
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: .
+    dockerfilePath: ./backend/Dockerfile.production
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        value: gamereviews-db
+      - key: DB_PORT
+        value: 5432
+      - key: DB_DATABASE
+        value: games
+      - key: DB_USERNAME
+        value: gamereviews
+      - key: DB_PASSWORD
+        sync: false
+      - key: REDIS_HOST
+        value: gamereviews-redis
+      - key: REDIS_PORT
+        value: 6379
+      - key: QUEUE_CONNECTION
+        value: redis
+    startCommand: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+
+databases:
+  - name: gamereviews-db
+    plan: free
+    databaseName: games
+    user: gamereviews
+    region: oregon
+
+redis:
+  - name: gamereviews-redis
+    plan: free
+    region: oregon
